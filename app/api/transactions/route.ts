@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { createTransaction, listTransactions } from "@/lib/redis";
-import { parseTransactionInput, readJson, route } from "@/lib/http";
+import { assertCategoryFits, parseTransactionInput, readJson, route } from "@/lib/http";
 import type { TransactionFilters, TransactionType } from "@/types";
 
 /** Собирает фильтры списка из query-параметров запроса. */
@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   return route(async () => {
     const input = parseTransactionInput(await readJson(request));
+    await assertCategoryFits(input);
     return createTransaction(input);
   });
 }

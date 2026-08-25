@@ -47,7 +47,10 @@ export function formatMonth(month: string): string {
 export function formatMonthShort(month: string): string {
   const parsed = new Date(`${month}-01T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return month;
-  return parsed.toLocaleDateString("ru-RU", { month: "short", year: "2-digit" });
+  // «авг. 26 г.» → «авг. 26»: хвост «г.» на оси графика только шумит.
+  return parsed
+    .toLocaleDateString("ru-RU", { month: "short", year: "2-digit" })
+    .replace(/\s*г\.$/, "");
 }
 
 /** Текущая дата в формате YYYY-MM-DD по локальному времени. */

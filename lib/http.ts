@@ -1,5 +1,5 @@
 import type { TransactionInput, CategoryInput } from "@/types";
-import { isTransactionType } from "@/lib/redis";
+import { getCategory, isTransactionType } from "@/lib/redis";
 
 /** Ошибка входных данных — уходит пользователю как 400. */
 export class ValidationError extends Error {}
@@ -40,7 +40,7 @@ export async function readJson(request: Request): Promise<unknown> {
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const MONTH_RE = /^\d{4}-\d{2}$/;
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
 function asRecord(body: unknown): Record<string, unknown> {
@@ -76,6 +76,22 @@ export function parseTransactionInput(body: unknown): TransactionInput {
   const note = String(data.note ?? "").trim().slice(0, 500);
 
   return { type: data.type, amount: Math.round(amount * 100) / 100, categoryId, date, note };
+}
+
+/**
+ * Проверяет, что категория операции существует и совпадает по типу:
+ * доход нельзя записать в расходную категорию и наоборот.
+ */
+export async function assertCategoryFits(input: TransactionInput): Promise<void> {
+  const category = await getCategory(input.categoryId);
+
+  if (!category) {
+    throw new ValidationError("Выбранной категории не существует");
+  }
+  if (category.type !== input.type) {
+    const expected = category.type === "income" ? "доходов" : "расходов";
+    throw new ValidationError(`Категория «${category.name}» предназначена для ${expected}`);
+  }
 }
 
 /** Проверяет и нормализует тело запроса на создание/изменение категории. */

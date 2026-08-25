@@ -25,6 +25,16 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error("Нет связи с сервером. Проверьте подключение к сети.");
   }
 
+  // Сессия истекла или её нет — уводим на страницу входа.
+  // Именно полная перезагрузка, а не router.push: так гарантированно
+  // сбрасывается весь клиентский кеш с чужими или устаревшими данными.
+  if (response.status === 401 && typeof window !== "undefined") {
+    const back = `${window.location.pathname}${window.location.search}`;
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = `/login?next=${encodeURIComponent(back)}`;
+    throw new Error("Сессия истекла, нужен повторный вход");
+  }
+
   const payload = await response.json().catch(() => null);
 
   if (!response.ok) {

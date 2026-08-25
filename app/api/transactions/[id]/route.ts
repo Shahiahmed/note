@@ -1,6 +1,12 @@
 import type { NextRequest } from "next/server";
 import { deleteTransaction, getTransaction, updateTransaction } from "@/lib/redis";
-import { NotFoundError, parseTransactionInput, readJson, route } from "@/lib/http";
+import {
+  assertCategoryFits,
+  NotFoundError,
+  parseTransactionInput,
+  readJson,
+  route,
+} from "@/lib/http";
 
 type Context = RouteContext<"/api/transactions/[id]">;
 
@@ -19,6 +25,7 @@ export async function PUT(request: NextRequest, ctx: Context) {
   return route(async () => {
     const { id } = await ctx.params;
     const input = parseTransactionInput(await readJson(request));
+    await assertCategoryFits(input);
     const updated = await updateTransaction(id, input);
     if (!updated) throw new NotFoundError("Операция не найдена");
     return updated;

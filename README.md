@@ -1,36 +1,193 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Мой бюджет
 
-## Getting Started
+Веб-приложение для учёта личных доходов и расходов: операции, категории, дашборд с графиками
+и месячные лимиты по категориям. Валюта — тенге (₸), интерфейс на русском.
 
-First, run the development server:
+**Стек:** Next.js 16 (App Router, TypeScript) · Tailwind CSS 4 · Upstash Redis (REST) · Recharts.
+
+## Возможности
+
+- **Операции** — доход или расход с суммой, категорией, датой и заметкой. Создание,
+  редактирование, удаление; фильтры по типу, категории и диапазону дат; поиск по тексту заметки.
+- **Категории** — 12 предустановленных (Еда, Транспорт, Жильё, Зарплата и другие) плюс свои,
+  с выбором иконки и цвета. Предустановленные удалить нельзя, переименовать — можно.
+- **Дашборд** — баланс, доход и расход текущего месяца, остаток; столбчатый график доходов
+  и расходов по месяцам, круговой график расходов по категориям, последние 5 операций.
+- **Бюджеты** — лимит расходов на категорию в конкретном месяце, прогресс-бар «потрачено из
+  лимита», предупреждение при приближении к лимиту и явное сообщение при превышении.
+- **Вход по логину и паролю** — приложение целиком закрыто: без сессии не откроется ни одна
+  страница и ни один API-запрос. Пароль хранится только в виде PBKDF2-хеша.
+
+## Быстрый старт
+
+### 1. Установить зависимости
+
+```bash
+npm install
+```
+
+### 2. Завести базу Upstash Redis
+
+1. Зарегистрируйтесь на [console.upstash.com](https://console.upstash.com) (бесплатного плана
+   хватает с запасом: 256 МБ и 500 000 команд в месяц).
+2. Создайте базу: **Create Database** → регион поближе к вам → **Create**.
+3. На странице базы, в блоке **REST API**, скопируйте `UPSTASH_REDIS_REST_URL`
+   и `UPSTASH_REDIS_REST_TOKEN`.
+
+### 3. Прописать переменные окружения
+
+```bash
+cp .env.example .env.local
+```
+
+и заполнить `.env.local`:
+
+```env
+UPSTASH_REDIS_REST_URL=https://your-database-name.upstash.io
+UPSTASH_REDIS_REST_TOKEN=ваш-rest-токен
+REDIS_KEY_PREFIX=
+```
+
+`.env.local` в git не попадает — он в `.gitignore`. В репозитории лежит только `.env.example`
+с плейсхолдерами.
+
+> **Если бесплатный план не даёт создать вторую базу.** Задайте `REDIS_KEY_PREFIX=budget:` —
+> все ключи приложения получат этот префикс (`budget:transactions:…`), и приложение спокойно
+> уживётся в одной базе с другим проектом. Значение можно менять только до появления данных:
+> старые ключи под новым префиксом видны не будут.
+
+### 4. Задать логин и пароль
+
+```bash
+npm run set-password
+```
+
+Скрипт спросит логин и пароль (ввод скрыт) и допишет в `.env.local` три переменные:
+`AUTH_LOGIN`, `AUTH_PASSWORD_HASH` и `AUTH_SECRET`. Сам пароль никуда не сохраняется —
+только его PBKDF2-хеш (210 000 итераций, случайная соль), поэтому восстановить пароль
+из файла нельзя. `AUTH_SECRET` — случайный ключ, которым подписывается кука сессии.
+
+Пока эти переменные не заданы, приложение не открывается вообще: вместо дашборда
+показывается страница входа с напоминанием выполнить команду. Это сделано намеренно —
+безопаснее, чем случайно оставить финансы открытыми.
+
+Чтобы сменить пароль, выполните команду ещё раз и перезапустите приложение. Заодно
+поменяется `AUTH_SECRET`, то есть все прежние сессии перестанут действовать.
+
+### 5. Запустить
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Откройте [http://localhost:3000](http://localhost:3000). При первом запросе к категориям база
+один раз наполняется предустановленным набором — отдельная команда для этого не нужна.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Прочие команды
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build   # продакшен-сборка
+npm run start   # запуск собранного приложения
+npm run lint    # ESLint
+npx tsc --noEmit  # проверка типов
+```
 
-## Learn More
+## Как устроен вход
 
-To learn more about Next.js, take a look at the following resources:
+- `proxy.ts` в корне проекта (в Next.js 16 это бывший `middleware.ts`) перехватывает каждый
+  запрос до рендера. Без действующей сессии страницы отдают редирект на `/login`,
+  а `/api/*` — 401. Открыты только `/login` и `/api/auth/*`.
+- Сессия — кука `budget_session` с флагами `HttpOnly`, `SameSite=Lax` и `Secure`
+  в продакшене. Внутри подписанный HMAC-SHA256 токен со сроком жизни 30 дней;
+  на сервере ничего не хранится, в Redis сессии не пишутся.
+- Пять неудачных попыток входа с одного адреса включают паузу на 5 минут.
+- Кнопка «Выйти» в шапке гасит куку через `POST /api/auth/logout`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Схема рассчитана на одного пользователя — вас. Если понадобится несколько человек
+с разными правами, это уже другая задача: список пользователей в Redis и роли.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Структура проекта
 
-## Deploy on Vercel
+```
+app/
+  page.tsx              дашборд
+  transactions/         список операций с фильтрами
+  categories/           управление категориями
+  budgets/              лимиты и прогресс по ним
+  login/                страница входа
+  api/
+    auth/               login, logout
+    transactions/       GET, POST  +  [id]: GET, PUT, DELETE
+    categories/         GET, POST  +  [id]: PUT, DELETE
+    budgets/            GET, PUT, DELETE
+    stats/              GET — данные дашборда
+  layout.tsx, globals.css
+components/
+  ui/                   Card, Button, Field, Modal, ProgressBar, States
+  charts/               MonthlyBarChart, CategoryPieChart
+  AppNav, PageHeader, StatCard, TransactionList,
+  TransactionFilterBar, TransactionForm, CategoryForm, BudgetForm
+proxy.ts                защита: без сессии дальше не пускает
+scripts/
+  set-password.mjs      генерация логина, хеша пароля и секрета сессии
+lib/
+  auth.ts               хеширование пароля и подпись сессии
+  redis.ts              весь доступ к Redis — только здесь
+  http.ts               валидация тела запросов и единый формат ошибок
+  api.ts                типизированный клиент для фронтенда
+  format.ts             тенге, даты, месяцы
+  constants.ts          предустановленные категории и палитра
+  hooks.ts              useAsyncData — загрузка с состояниями loading/error
+types/index.ts          все доменные типы
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Работа с Redis изолирована в `lib/redis.ts`: компоненты и страницы ходят только в API-роуты
+через `lib/api.ts`, а роуты — только в этот модуль.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Схема данных в Redis
+
+| Ключ | Тип | Что хранит |
+| --- | --- | --- |
+| `transactions:{id}` | hash | Поля одной операции: `id`, `type`, `amount`, `categoryId`, `date`, `note`, `createdAt` |
+| `user:transactions` | sorted set | Лента операций: `member` — id, `score` — timestamp даты (полночь UTC) |
+| `categories` | hash | `id` → JSON категории (`name`, `icon`, `color`, `type`, `isDefault`) |
+| `budgets:{categoryId}` | hash | `ГГГГ-ММ` → лимит в тенге |
+| `budgets:index` | set | Категории, у которых есть хотя бы один лимит |
+| `seed:categories` | string | Флаг, что предустановленные категории уже созданы |
+
+Ко всем ключам добавляется `REDIS_KEY_PREFIX`, если он задан.
+
+Даты в sorted set хранятся как полночь UTC, поэтому фильтр по диапазону дат отсекается прямо
+в Redis (`ZRANGE … BYSCORE`), а тип, категория и поиск по заметке фильтруются уже в памяти —
+на объёмах личного бюджета это дешевле, чем держать отдельные индексы.
+
+## API
+
+| Метод и путь | Назначение |
+| --- | --- |
+| `GET /api/transactions?type=&categoryId=&from=&to=&search=` | Список операций от новых к старым |
+| `POST /api/transactions` | Создать операцию |
+| `GET/PUT/DELETE /api/transactions/{id}` | Получить, изменить, удалить операцию |
+| `GET /api/categories` | Все категории |
+| `POST /api/categories` | Создать свою категорию |
+| `PUT/DELETE /api/categories/{id}` | Изменить или удалить категорию |
+| `GET /api/budgets?month=ГГГГ-ММ` | Лимиты месяца вместе с прогрессом |
+| `PUT /api/budgets` | Задать лимит (`categoryId`, `month`, `limit`) |
+| `DELETE /api/budgets?categoryId=&month=` | Снять лимит |
+| `GET /api/stats` | Сводка для дашборда |
+| `POST /api/auth/login` | Вход: `{ login, password }` |
+| `POST /api/auth/logout` | Выход |
+
+Все пути, кроме `/api/auth/*`, требуют сессии — иначе 401.
+
+Ошибки приходят единообразно — `{ "error": "текст на русском" }` со статусом 400 (данные),
+401 (нужен вход), 404 (не найдено), 429 (слишком много попыток входа) или 500.
+
+## Деплой
+
+Приложение разворачивается на Vercel без дополнительной настройки: подключите репозиторий
+и добавьте `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `AUTH_LOGIN`,
+`AUTH_PASSWORD_HASH`, `AUTH_SECRET` (и при необходимости `REDIS_KEY_PREFIX`)
+в Project Settings → Environment Variables. Значения `AUTH_*` возьмите из своего
+`.env.local` — они уже в безопасном виде. Upstash работает по HTTP,
+поэтому лишних сетевых настроек не требуется.

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "set-password": "node scripts/set-password.mjs"
   },
   "dependencies": {
     "@upstash/redis": "^1.38.2",
