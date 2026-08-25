@@ -54,8 +54,11 @@ export const config = {
      * Всё, кроме служебных путей:
      * - /api/auth/*  — сам вход и выход
      * - _next/*      — сборка Next
-     * - favicon.ico и статика
+     * - manifest.webmanifest, sw.js — установка на телефон: браузер просит их
+     *                  до входа, и закрыть их значит сломать установку.
+     *                  Данных внутри нет, только имя и иконки.
+     * - favicon.ico и картинки
      */
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
+    "/((?!api/auth|_next/static|_next/image|manifest.webmanifest|sw.js|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
   ],
 };
