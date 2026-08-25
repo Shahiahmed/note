@@ -1,26 +1,75 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-canvas: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-line: #e7e9ee;
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
+  --color-faint: #78849b;
+  --color-accent: #4f46e5;
+  --color-accent-soft: #eef2ff;
+
+  /*
+   * Пара «доход / расход» проверена на различимость при дальтонизме:
+   * бирюзовый и малиновый расходятся и при дейтеранопии, в отличие
+   * от привычной пары зелёный/красный. Тёмные варианты — для текста
+   * (контраст выше 4.5:1), светлые — для заливок на графиках.
+   */
+  --color-income: #0f766e;
+  --color-income-mark: #0d9488;
+  --color-income-soft: #f0fdfa;
+  --color-expense: #be123c;
+  --color-expense-mark: #e11d48;
+  --color-expense-soft: #fff1f2;
+
+  --color-warn: #b45309;
+  --color-warn-soft: #fffbeb;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 6px 20px -8px rgb(16 24 40 / 0.10);
+  --shadow-pop: 0 10px 40px -12px rgb(16 24 40 / 0.25);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1;
+}
+
+/* Числа в таблицах и карточках выравниваются по разрядам. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Аккуратный фокус для клавиатурной навигации. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Скрываем стандартные стрелки у number-полей — сумма вводится с клавиатуры. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

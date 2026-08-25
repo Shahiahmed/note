@@ -1,69 +1,162 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import Link from "next/link";
+import { useCallback, useState } from "react";
+import { api } from "@/lib/api";
+import { useAsyncData } from "@/lib/hooks";
+import { formatMonth } from "@/lib/format";
+import { PageHeader } from "@/components/PageHeader";
+import { StatCard, StatCardSkeleton } from "@/components/StatCard";
+import { TransactionForm } from "@/components/TransactionForm";
+import { TransactionList } from "@/components/TransactionList";
+import { MonthlyBarChart } from "@/components/charts/MonthlyBarChart";
+import { CategoryPieChart } from "@/components/charts/CategoryPieChart";
+import { Button } from "@/components/ui/Button";
+import { Card, CardHeader } from "@/components/ui/Card";
+import { EmptyState, ErrorBanner, Loading } from "@/components/ui/States";
+import type { Category, DashboardStats } from "@/types";
+
+/** Главная страница: показатели месяца, графики и последние операции. */
+export default function DashboardPage() {
+  const load = useCallback(
+    (): Promise<[DashboardStats, Category[]]> =>
+      Promise.all([api.stats(), api.categories.list()]),
+    []
+  );
+
+  const { data, loading, error, reload } = useAsyncData(load);
+  const [isFormOpen, setFormOpen] = useState(false);
+
+  const stats = data?.[0] ?? null;
+  const categories = data?.[1] ?? [];
+  const categoryMap = new Map(categories.map((category) => [category.id, category]));
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <>
+      <PageHeader
+        title="Дашборд"
+        subtitle={stats ? formatMonth(stats.month) : "Личный учёт доходов и расходов"}
+        action={
+          <Button variant="primary" onClick={() => setFormOpen(true)}>
+            <span aria-hidden>+</span> Операция
+          </Button>
+        }
+      />
+
+      {error ? (
+        <div className="mb-5">
+          <ErrorBanner message={error} onRetry={reload} />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {loading && !stats ? (
+          <>
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </>
+        ) : (
+          <>
+            <StatCard
+              label="Общий баланс"
+              value={stats?.balance ?? 0}
+              icon="💰"
+              tone={(stats?.balance ?? 0) < 0 ? "expense" : "accent"}
+              hint="За всё время"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            <StatCard
+              label="Доход за месяц"
+              value={stats?.monthIncome ?? 0}
+              icon="📈"
+              tone="income"
+            />
+            <StatCard
+              label="Расход за месяц"
+              value={stats?.monthExpense ?? 0}
+              icon="📉"
+              tone="expense"
+            />
+            <StatCard
+              label="Остаток за месяц"
+              value={stats?.monthNet ?? 0}
+              icon="🧮"
+              tone={(stats?.monthNet ?? 0) < 0 ? "expense" : "income"}
+              signed
+              hint="Доходы минус расходы"
+            />
+          </>
+        )}
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader title="Доходы и расходы" subtitle="Последние 6 месяцев" />
+          <div className="px-4 py-5 sm:px-5">
+            {loading && !stats ? (
+              <Loading />
+            ) : (
+              <MonthlyBarChart data={stats?.monthly ?? []} />
+            )}
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Расходы по категориям"
+            subtitle={stats ? formatMonth(stats.month) : undefined}
+          />
+          <div className="px-4 py-5 sm:px-5">
+            {loading && !stats ? (
+              <Loading />
+            ) : (
+              <CategoryPieChart data={stats?.byCategory ?? []} />
+            )}
+          </div>
+        </Card>
+      </div>
+
+      <div className="mt-4">
+        <Card>
+          <CardHeader
+            title="Последние операции"
+            action={
+              <Link
+                href="/transactions"
+                className="text-sm font-medium text-accent hover:underline"
+              >
+                Все операции
+              </Link>
+            }
+          />
+          {loading && !stats ? (
+            <Loading />
+          ) : stats && stats.recent.length > 0 ? (
+            <TransactionList transactions={stats.recent} categories={categoryMap} />
+          ) : (
+            <EmptyState
+              icon="🪙"
+              title="Операций пока нет"
+              description="Добавьте первый доход или расход, чтобы увидеть статистику."
+              action={
+                <Button variant="primary" onClick={() => setFormOpen(true)}>
+                  Добавить операцию
+                </Button>
+              }
+            />
+          )}
+        </Card>
+      </div>
+
+      {isFormOpen ? (
+        <TransactionForm
+          transaction={null}
+          categories={categories}
+          onClose={() => setFormOpen(false)}
+          onSaved={reload}
+        />
+      ) : null}
+    </>
   );
 }
