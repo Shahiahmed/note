@@ -53,9 +53,34 @@ export function formatMonthShort(month: string): string {
     .replace(/\s*г\.$/, "");
 }
 
-/** Текущая дата в формате YYYY-MM-DD по локальному времени. */
+/**
+ * Часовой пояс, в котором приложение решает, какое сегодня число.
+ *
+ * Без него сервер считал бы дату по своему времени: на Vercel это UTC,
+ * то есть с полуночи до 5 утра по Алматы «сегодня» отставало бы на день,
+ * а первого числа месяца — ещё и на месяц. Норма трат на день от этого
+ * поехала бы. Переопределяется через NEXT_PUBLIC_APP_TIMEZONE.
+ */
+const TIME_ZONE = process.env.NEXT_PUBLIC_APP_TIMEZONE?.trim() || "Asia/Almaty";
+
+/** en-CA даёт ровно нужный вид: 2026-08-25. */
+const ISO_DATE_FORMAT = (() => {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+  } catch {
+    // Пояс написан с ошибкой — не роняем приложение, откатываемся на локальное время.
+    return null;
+  }
+})();
+
+/** Текущая дата в формате YYYY-MM-DD. */
 export function todayISO(): string {
-  return toISODate(new Date());
+  return ISO_DATE_FORMAT ? ISO_DATE_FORMAT.format(new Date()) : toISODate(new Date());
 }
 
 /** Дата в формате YYYY-MM-DD по локальному времени (без сдвига UTC). */
@@ -71,20 +96,43 @@ export function currentMonth(): string {
   return todayISO().slice(0, 7);
 }
 
+/** Сколько дней в месяце YYYY-MM. */
+export function daysInMonth(month: string): number {
+  const [year, m] = month.split("-").map(Number);
+  // Нулевой день следующего месяца — это последний день текущего.
+  return new Date(year, m, 0).getDate();
+}
+
+/** Номер дня в дате YYYY-MM-DD: для «2026-08-25» вернёт 25. */
+export function dayOfMonth(date: string): number {
+  return Number(date.slice(8, 10));
+}
+
 /** Первый и последний день месяца YYYY-MM в формате YYYY-MM-DD. */
 export function monthRange(month: string): { from: string; to: string } {
-  const [year, m] = month.split("-").map(Number);
-  const last = new Date(year, m, 0).getDate();
+  const last = daysInMonth(month);
   return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, "0")}` };
 }
 
 /** Последние `count` месяцев по возрастанию, заканчивая текущим. */
 export function lastMonths(count: number): string[] {
-  const now = new Date();
+  // Отсчитываем от currentMonth(), а не от new Date(): иначе на границе месяца
+  // график и карточки показывали бы разные месяцы.
+  const [year, month] = currentMonth().split("-").map(Number);
   const months: string[] = [];
   for (let i = count - 1; i >= 0; i -= 1) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const d = new Date(year, month - 1 - i, 1);
     months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
   return months;
+}
+
+/** Русское склонение слова «день»: 1 день, 2 дня, 5 дней. */
+export function pluralDays(count: number): string {
+  const mod100 = Math.abs(count) % 100;
+  const mod10 = count % 10;
+  if (mod100 >= 11 && mod100 <= 14) return "дней";
+  if (mod10 === 1) return "день";
+  if (mod10 >= 2 && mod10 <= 4) return "дня";
+  return "дней";
 }

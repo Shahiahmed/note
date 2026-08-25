@@ -7,6 +7,7 @@ import { useAsyncData } from "@/lib/hooks";
 import { formatMonth } from "@/lib/format";
 import { PageHeader } from "@/components/PageHeader";
 import { StatCard, StatCardSkeleton } from "@/components/StatCard";
+import { DailyBudgetCard, DailyBudgetCardSkeleton } from "@/components/DailyBudgetCard";
 import { TransactionForm } from "@/components/TransactionForm";
 import { TransactionList } from "@/components/TransactionList";
 import { MonthlyBarChart } from "@/components/charts/MonthlyBarChart";
@@ -88,6 +89,14 @@ export default function DashboardPage() {
             />
           </>
         )}
+      </div>
+
+      <div className="mt-4">
+        {loading && !stats ? (
+          <DailyBudgetCardSkeleton />
+        ) : stats ? (
+          <DailyBudgetCard budget={stats.dailyBudget} />
+        ) : null}
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">

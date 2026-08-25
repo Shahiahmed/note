@@ -99,6 +99,30 @@ export interface CategoryPoint {
 }
 
 /** Сводные данные для дашборда. */
+/**
+ * Сколько можно тратить в день, чтобы денег хватило до конца месяца.
+ * Считается от баланса на начало сегодняшнего дня, поэтому норма
+ * не прыгает после каждой покупки — вместо неё убывает `leftToday`.
+ */
+export interface DailyBudget {
+  /** Дата, на которую всё посчитано, YYYY-MM-DD. */
+  today: string;
+  /** Всего дней в месяце. */
+  daysInMonth: number;
+  /** Дней до конца месяца, считая сегодняшний. */
+  daysLeft: number;
+  /** Деньги, которые распределяются: баланс на начало дня, но не меньше нуля. */
+  available: number;
+  /** Норма на один день. */
+  perDay: number;
+  /** Уже потрачено сегодня. */
+  spentToday: number;
+  /** Сколько ещё можно потратить сегодня, не выходя из нормы. */
+  leftToday: number;
+  /** Фактический средний расход в день с начала месяца. */
+  averagePerDay: number;
+}
+
 export interface DashboardStats {
   /** Баланс за всё время: доходы минус расходы. */
   balance: number;
@@ -111,6 +135,8 @@ export interface DashboardStats {
   monthly: MonthlyPoint[];
   byCategory: CategoryPoint[];
   recent: Transaction[];
+  /** План трат на оставшиеся дни месяца. */
+  dailyBudget: DailyBudget;
 }
 
 /** Единый формат ошибки API. */

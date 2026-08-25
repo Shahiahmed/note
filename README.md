@@ -13,6 +13,9 @@
   с выбором иконки и цвета. Предустановленные удалить нельзя, переименовать — можно.
 - **Дашборд** — баланс, доход и расход текущего месяца, остаток; столбчатый график доходов
   и расходов по месяцам, круговой график расходов по категориям, последние 5 операций.
+- **Норма на день** — сколько можно тратить каждый день, чтобы денег хватило до конца
+  месяца: баланс делится на оставшиеся дни. Рядом видно, сколько из нормы уже ушло сегодня
+  и укладываетесь ли вы в темп.
 - **Бюджеты** — лимит расходов на категорию в конкретном месяце, прогресс-бар «потрачено из
   лимита», предупреждение при приближении к лимиту и явное сообщение при превышении.
 - **Вход по логину и паролю** — приложение целиком закрыто: без сессии не откроется ни одна
@@ -46,7 +49,13 @@ cp .env.example .env.local
 UPSTASH_REDIS_REST_URL=https://your-database-name.upstash.io
 UPSTASH_REDIS_REST_TOKEN=ваш-rest-токен
 REDIS_KEY_PREFIX=
+NEXT_PUBLIC_APP_TIMEZONE=Asia/Almaty
 ```
+
+`NEXT_PUBLIC_APP_TIMEZONE` задаёт, по какому времени приложение определяет «сегодня»:
+от этого зависят счётчик оставшихся дней и норма трат. Указать пояс важно именно на
+сервере — Vercel работает в UTC, и без явного значения дата с полуночи до 5 утра
+отставала бы на день. По умолчанию `Asia/Almaty`.
 
 `.env.local` в git не попадает — он в `.gitignore`. В репозитории лежит только `.env.example`
 с плейсхолдерами.
@@ -125,7 +134,7 @@ app/
 components/
   ui/                   Card, Button, Field, Modal, ProgressBar, States
   charts/               MonthlyBarChart, CategoryPieChart
-  AppNav, PageHeader, StatCard, TransactionList,
+  AppNav, PageHeader, StatCard, DailyBudgetCard, TransactionList,
   TransactionFilterBar, TransactionForm, CategoryForm, BudgetForm
 proxy.ts                защита: без сессии дальше не пускает
 scripts/
@@ -174,7 +183,7 @@ types/index.ts          все доменные типы
 | `GET /api/budgets?month=ГГГГ-ММ` | Лимиты месяца вместе с прогрессом |
 | `PUT /api/budgets` | Задать лимит (`categoryId`, `month`, `limit`) |
 | `DELETE /api/budgets?categoryId=&month=` | Снять лимит |
-| `GET /api/stats` | Сводка для дашборда |
+| `GET /api/stats` | Сводка для дашборда, включая норму трат на день |
 | `POST /api/auth/login` | Вход: `{ login, password }` |
 | `POST /api/auth/logout` | Выход |
 
@@ -187,7 +196,9 @@ types/index.ts          все доменные типы
 
 Приложение разворачивается на Vercel без дополнительной настройки: подключите репозиторий
 и добавьте `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `AUTH_LOGIN`,
-`AUTH_PASSWORD_HASH`, `AUTH_SECRET` (и при необходимости `REDIS_KEY_PREFIX`)
-в Project Settings → Environment Variables. Значения `AUTH_*` возьмите из своего
+`AUTH_PASSWORD_HASH`, `AUTH_SECRET` и `NEXT_PUBLIC_APP_TIMEZONE`
+(и при необходимости `REDIS_KEY_PREFIX`) в Project Settings → Environment Variables.
+Значения вставляйте без кавычек: то, что в `.env.local` записано как `"https://…"`,
+в поле Vercel должно попасть без них. Значения `AUTH_*` возьмите из своего
 `.env.local` — они уже в безопасном виде. Upstash работает по HTTP,
 поэтому лишних сетевых настроек не требуется.

@@ -1,12 +1,21 @@
 import { Redis } from "@upstash/redis";
 import { DEFAULT_CATEGORIES } from "@/lib/constants";
-import { currentMonth, formatMonthShort, lastMonths, monthRange } from "@/lib/format";
+import {
+  currentMonth,
+  dayOfMonth,
+  daysInMonth,
+  formatMonthShort,
+  lastMonths,
+  monthRange,
+  todayISO,
+} from "@/lib/format";
 import type {
   Budget,
   BudgetProgress,
   Category,
   CategoryInput,
   CategoryPoint,
+  DailyBudget,
   DashboardStats,
   MonthlyPoint,
   Transaction,
@@ -381,11 +390,13 @@ export async function getBudgetProgress(month: string): Promise<BudgetProgress[]
 /** Сводка: баланс, показатели месяца, данные графиков и последние операции. */
 export async function getDashboardStats(monthsBack = 6): Promise<DashboardStats> {
   const month = currentMonth();
+  const today = todayISO();
   const [all, categories] = await Promise.all([listTransactions({}), getCategoryMap()]);
 
   let balance = 0;
   let monthIncome = 0;
   let monthExpense = 0;
+  let spentToday = 0;
 
   const months = lastMonths(monthsBack);
   const monthlyMap = new Map<string, MonthlyPoint>(
@@ -408,6 +419,7 @@ export async function getDashboardStats(monthsBack = 6): Promise<DashboardStats>
         monthIncome += t.amount;
       } else {
         monthExpense += t.amount;
+        if (t.date === today) spentToday += t.amount;
         categoryTotals.set(t.categoryId, (categoryTotals.get(t.categoryId) ?? 0) + t.amount);
       }
     }
@@ -435,6 +447,48 @@ export async function getDashboardStats(monthsBack = 6): Promise<DashboardStats>
     monthly: months.map((m) => monthlyMap.get(m)!),
     byCategory,
     recent: all.slice(0, 5),
+    dailyBudget: buildDailyBudget({ today, month, balance, monthExpense, spentToday }),
+  };
+}
+
+interface DailyBudgetInput {
+  today: string;
+  month: string;
+  balance: number;
+  monthExpense: number;
+  spentToday: number;
+}
+
+/**
+ * Делит доступные деньги на оставшиеся дни месяца.
+ *
+ * Норму считаем от баланса на начало дня (текущий баланс плюс то, что уже
+ * потрачено сегодня). Иначе после каждой покупки норма падала бы прямо на
+ * глазах, и понять, уложился ли ты в день, было бы невозможно. Приход денег
+ * сегодня, наоборот, поднимает норму сразу — так и должно быть.
+ */
+function buildDailyBudget(input: DailyBudgetInput): DailyBudget {
+  const { today, month, balance, monthExpense, spentToday } = input;
+  const total = daysInMonth(month);
+
+  // Сегодняшний день может лежать вне месяца статистики только при ручной
+  // правке часов, но делить на ноль всё равно нельзя — поэтому нижняя граница 1.
+  const dayNumber = today.startsWith(month) ? dayOfMonth(today) : total;
+  const daysLeft = Math.max(1, total - dayNumber + 1);
+  const daysElapsed = Math.max(1, dayNumber);
+
+  const available = Math.max(0, balance + spentToday);
+  const perDay = Math.floor(available / daysLeft);
+
+  return {
+    today,
+    daysInMonth: total,
+    daysLeft,
+    available,
+    perDay,
+    spentToday,
+    leftToday: Math.max(0, perDay - spentToday),
+    averagePerDay: Math.round(monthExpense / daysElapsed),
   };
 }
 
