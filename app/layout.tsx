@@ -28,9 +28,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col">
         <AppNav />
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:py-8">{children}</main>
-        <footer className="mx-auto w-full max-w-6xl px-4 pb-8 pt-2 text-xs text-faint">
-          Данные хранятся в вашей базе Upstash Redis
-        </footer>
       </body>
     </html>
   );
